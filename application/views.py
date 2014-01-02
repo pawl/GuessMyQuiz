@@ -11,52 +11,71 @@ For example the *say_hello* handler, handling the URL route '/hello/<username>',
 from google.appengine.runtime.apiproxy_errors import CapabilityDisabledError
 from flask import request, render_template, url_for, redirect, json, jsonify
 from application import app
-from fuzzywuzzy import fuzz
-from fuzzywuzzy import process
-
+import urllib 
+import urllib2
 
 def home():
-	return redirect(url_for('match'))
+	return redirect(url_for('guess'))
 
-def match():
+def guess():
 	def column(matrix, i):
 		return [row[i] for row in matrix]
+	
+	# based on Max M's "A little amusing Python program": https://mail.python.org/pipermail/python-list/2001-October/102669.html
+	class multiChoiceGuesser:
+		def __init__(self, question='', replys=()):
+			self.question = question
+			self.replys   = replys
 
-	exampleOutput = [["Charles Babbage", "Ritchie"],
-			["Tim Berners-Lee", "Thompson"],
-			["Alan Turing", "Pascal"],
-			["Ken Thompson", "Turing"],
-			["Blaise Pascal", "Russell"],
-			["Bertrand Russell", "Babbage"],
-			["Dennis Ritchie", "Berners-Lee"]]
+		def guessedAnswer(self):
+			hits = []
+			for reply in self.replys:
+				query = self.question + ' ' + reply
+				hits.append(self.bing_search(query))
+			print hits
+			if max(hits) > 0:
+				hitResult = hits.index(max(hits))
+			else:
+				hitResult = "No Results"
+			return hitResult
+
+		def bing_search(self, query):
+			key= 'secret' # bing api key
+			query = urllib.quote(query)
+			# create credential for authentication
+			user_agent = 'Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1; Trident/4.0; FDM; .NET CLR 2.0.50727; InfoPath.2; .NET CLR 1.1.4322)'
+			credentials = (':%s' % key).encode('base64')[:-1]
+			auth = 'Basic %s' % credentials
+			url = 'https://api.datamarket.azure.com/Data.ashx/Bing/Search/Composite?Sources=%27web%27&Query=%27'+query+'%27&$top=1&$format=json'
+			request = urllib2.Request(url)
+			request.add_header('Authorization', auth)
+			request.add_header('User-Agent', user_agent)
+			request_opener = urllib2.build_opener()
+			response = request_opener.open(request) 
+			response_data = response.read()
+			json_result = json.loads(response_data)
+			result_count = int(json_result['d']['results'][0]['WebTotal'])
+			return result_count
+
+	def guess(question, choices):
+		mcg = multiChoiceGuesser(question, choices) 
+		return choices[mcg.guessedAnswer()]
+		
+	exampleOutput = [['Who created Linux?', 'Linus Torvalds','RMS','Steve Jobs','Bill Gates'],
+					['What is the capital of Finland?', "Libreville", "Banjul", "Helsinki", "Dallas"]]
 	
 	if request.method == "POST":
 		submittedData = request.json['data'] # get data from ajax request
-		secondColumnDict = {} # this dict has the 2nd column as the key, and the 2nd column and everything after as the value, it's used for keeping the everything beyond the 2nd column intact when outputting the results
-		for submittedRow in submittedData:
-			'''
-			# this doesn't work very well if there are duplicates in the 2nd and 3rd column
-			# also requires expanding the grid dynamically
-			if secondColumnDict.has_key(submittedRow[1]) and len(submittedRow) > 2: # if there are two items in the second column which are the same
-				secondColumnDict[submittedRow[1]] += submittedRow[2:] # add everything after the 2nd column to the duplicate key
-				print secondColumnDict[submittedRow[1]]
-			'''
-			# assumes the user has a unique 2nd column
-			if submittedRow[1]:
-				secondColumnDict[submittedRow[1]] = submittedRow[1:] # create a dict e
-				
 		processedData = []
-		for firstColumnItem in column(submittedData, 0):
-			if firstColumnItem:
-				results = process.extract(firstColumnItem, column(submittedData,1), limit=1)
-				item = [firstColumnItem]
-				item.extend(secondColumnDict[results[0][0]])
-				print item
-				processedData.append(item)
+		for row in submittedData:
+			if row[0]:
+				result = guess('"' + row[0] + '"', row[1:])
+				row.extend([result])
+				processedData.append(row)
 			else:
-				processedData.append(["",""])
+				processedData.append(row)
 		return jsonify(data=processedData)
-	return render_template('match.html',exampleOutput=exampleOutput)
+	return render_template('guess.html',exampleOutput=exampleOutput)
 
 def warmup():
 	"""App Engine warmup handler
