@@ -33,10 +33,9 @@ def guess():
 				query = self.question + ' ' + reply
 				hits.append(self.bing_search(query))
 			print hits
-			if max(hits) > 0:
-				hitResult = hits.index(max(hits))
-			else:
-				hitResult = "No Results"
+			if all(hit == 0 for hit in hits):
+				return None
+			hitResult = hits.index(max(hits))
 			return hitResult
 
 		def bing_search(self, query):
@@ -59,7 +58,10 @@ def guess():
 
 	def guess(question, choices):
 		mcg = multiChoiceGuesser(question, choices) 
-		return choices[mcg.guessedAnswer()]
+		if mcg.guessedAnswer() is None: # mcg.guessedAnswer() can be 0
+			return "Not Sure"
+		else:
+			return choices[mcg.guessedAnswer()]
 		
 	exampleOutput = [['Who created Linux?', 'Linus Torvalds','RMS','Steve Jobs','Bill Gates'],
 					['What is the capital of Finland?', "Libreville", "Banjul", "Helsinki", "Dallas"]]
