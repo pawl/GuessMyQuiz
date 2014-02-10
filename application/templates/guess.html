@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block style_block %}
+	{{ super() }}
+    <link href="/static/css/jquery.handsontable.full.css" rel="stylesheet" />
+{% endblock %}
+
+{% block head_script %}
+    {{ super() }}
+	<script src="/static/js/lib/jquery.handsontable.full.js"></script>
+{% endblock %}
+
+{% block content %}
+	<div class="handsOnContainer">
+		<div id="grid" class="handsontable"></div>
+		<button name="guess" class="btn btn-large btn-primary" style="margin-top: 10px;">Guess Answers</button>
+	</div>
+{% endblock content %}
+
+{% block tail_script %}
+	<script>
+	$(document).ready(function () {
+		var $container = $("#grid");
+		var $parent = $container.parent();
+	
+		var data = {{ exampleOutput|tojson|safe }};
+
+		$('#grid').handsontable({
+			data: data,
+			minSpareRows: 1,
+			colHeaders: ["Question", "Choice #1", "Choice #2", "Choice #3", "Choice #4"],
+			contextMenu: true
+		});
+
+		var handsontable = $container.data('handsontable');
+		
+		$parent.find('button[name=guess]').click(function () {
+			$.ajax({
+				url: "{{ url_for('guess') }}",
+				data: JSON.stringify({"data": handsontable.getData()}), //returns all cells' data
+				dataType: 'json',
+				contentType: "application/json; charset=utf-8", // won't work without specifying content type
+				type: 'POST',
+				success: function (res) {
+				  handsontable.loadData(res.data);
+				  console.log(res.data);
+				},
+				error: function (xhr, textStatus, errorThrown) {
+				  console.log(xhr.responseText);
+				  console.log(handsontable.getData());
+				}
+			});
+		});
+	});
+	</script>
+{% endblock tail_script %}
